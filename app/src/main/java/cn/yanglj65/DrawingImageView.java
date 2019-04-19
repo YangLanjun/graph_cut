@@ -6,8 +6,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.widget.ImageView;
-import android.widget.Toast;
 
 import java.util.ArrayList;
 
