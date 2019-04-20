@@ -28,6 +28,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
 
 import java.io.FileNotFoundException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
@@ -47,37 +48,98 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        MenuInflater inflater=getMenuInflater();
-        inflater.inflate(R.menu.menu_toolbar,menu);
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menu_toolbar, menu);
         return super.onCreateOptionsMenu(menu);
     }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         RequestOptions options = new RequestOptions()
                 .diskCacheStrategy(DiskCacheStrategy.RESOURCE);
         switch (item.getItemId()) {
             case R.id.reset:
-                imgSrcBitMap=null;
+                imgSrcBitMap = null;
                 foregroundLines.clear();
                 backgroundLines.clear();
-                currentLine=new Line();
+                currentLine = new Line();
                 imageViewSrc.setImageResource(R.drawable.upload);
 
                 Glide.with(this).load(R.drawable.loading).apply(options).into(imageViewDst);
                 return true;
             case R.id.clear:
-                if(imgSrcBitMap!=null){
-                    imgSrcBitMapCopy=imgSrcBitMap;
+                if (imgSrcBitMap != null) {
+                    imgSrcBitMapCopy = imgSrcBitMap.copy(Bitmap.Config.ARGB_8888, true);
                     imageViewSrc.setImageBitmap(imgSrcBitMap);
                 }
                 foregroundLines.clear();
                 backgroundLines.clear();
-                currentLine=new Line();
+                currentLine = new Line();
                 Glide.with(this).load(R.drawable.loading).apply(options).into(imageViewDst);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    public byte[] getBytesByBitmap(Bitmap bitmap) {
+        int bytes = bitmap.getByteCount();
+
+        ByteBuffer buf = ByteBuffer.allocate(bytes);
+        bitmap.copyPixelsToBuffer(buf);
+        return buf.array();
+    }
+
+    private double distance(Point start, Point end) {
+        return Math.pow((start.x - end.x), 2) + Math.pow((start.y - end.y), 2);
+    }
+
+    private void buildMask(Point p, GraphCutClasses[] masks, GraphCutClasses target) {
+        int width = imgSrcBitMap.getWidth();
+        int height = imgSrcBitMap.getHeight();
+
+        int row = (int) p.y;
+        int col = (int) p.x;
+        int maskArea=7;
+        for (int i = 0-maskArea; i <=maskArea; i++) {
+            if (row + i >= 0 && row + i < height) {
+                for (int j = 0-maskArea; j <=maskArea; j++) {
+                    if (col + j >= 0 && col + j < width) {
+                        int index = (row + i) * width + col + j;
+                        masks[index] = target;
+                    }
+                }
+            }
+        }
+    }
+
+    private void buildMaskBetweenTwoPoints(Point start, Point end, GraphCutClasses[] masks, GraphCutClasses target) {
+        if (distance(start, end) <=125 ) {
+            buildMask(start, masks, target);
+            buildMask(end, masks, target);
+        } else {
+           // Log.i("distance",String.valueOf(distance(start, end)));
+            Point midPoint = new Point((start.x + end.x) / 2, (start.y + end.y) / 2);
+            buildMaskBetweenTwoPoints(start, midPoint, masks, target);
+            buildMaskBetweenTwoPoints(midPoint, end, masks, target);
+        }
+    }
+
+    private void setMaskImg(GraphCutClasses[] masks) {
+        Bitmap dstCopy = imgSrcBitMap.copy(Bitmap.Config.ARGB_8888, true);
+        for (int i = 0; i < dstCopy.getHeight(); i++) {
+            for (int j = 0; j < dstCopy.getWidth(); j++) {
+                int index = i * dstCopy.getWidth() + j;
+                if(masks[index]==GraphCutClasses.BACKGROUND){
+                    dstCopy.setPixel(j, i, Color.rgb(255, 0, 0));
+                }else if(masks[index]==GraphCutClasses.FOREGROUND){
+                    dstCopy.setPixel(j, i, Color.rgb(0, 255, 0));
+                }else {
+                    dstCopy.setPixel(j, i, Color.rgb(0, 0, 0));
+                }
+            }
+        }
+        imageViewDst.setImageBitmap(dstCopy);
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -87,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         doCutButton = findViewById(R.id.doGraphCut);
         imageViewSrc = findViewById(R.id.imageSrc);
-        imageViewDst=findViewById(R.id.imageDst);
+        imageViewDst = findViewById(R.id.imageDst);
         RequestOptions options = new RequestOptions()
                 .diskCacheStrategy(DiskCacheStrategy.RESOURCE);
         Glide.with(this).load(R.drawable.loading).apply(options).into(imageViewDst);
@@ -95,7 +157,46 @@ public class MainActivity extends AppCompatActivity {
         doCutButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Toast.makeText(MainActivity.this, "开始执行图片分割", Toast.LENGTH_SHORT).show();
+                if (imgSrcBitMap != null) {
+                    int height = imgSrcBitMap.getHeight();
+                    int width = imgSrcBitMap.getWidth();
+                    byte[] imgBytes = getBytesByBitmap(imgSrcBitMap);
+
+                    for (int i = 0; i < imgBytes.length; i++) {
+                        //Log.i(String.valueOf(i), String.valueOf(imgBytes[i]));
+                    }
+                    //Log.i("total bytes", String.valueOf(imgBytes.length));
+                    //int a=imgSrcBitMap.getPixel(0,0);
+                    Log.i("img size", height + "*" + width + "=" + height * width);
+                    GraphCutClasses[] masks = new GraphCutClasses[height * width];
+                    for (GraphCutClasses mask : masks) {
+                        mask = GraphCutClasses.UNKNOWN;
+                    }
+                    for (Line line : backgroundLines) {
+                        for (int i = 0; i < line.points.size() - 1; i++) {
+                            Point startPos = line.points.get(i);
+                            Point endPos = line.points.get(i + 1);
+                            buildMaskBetweenTwoPoints(startPos, endPos, masks, GraphCutClasses.BACKGROUND);
+                        }
+                    }
+                    int count=0;
+                    Log.i("line counts",String.valueOf(foregroundLines.size()));
+                    for (Line line : foregroundLines) {
+                        count++;
+                        Log.i("number",String.valueOf(count));
+                        for (int i = 0; i < line.points.size() - 1; i++) {
+                            Log.i("i",String.valueOf(i));
+                            Point startPos = line.points.get(i);
+                            Point endPos = line.points.get(i + 1);
+                            buildMaskBetweenTwoPoints(startPos, endPos, masks, GraphCutClasses.FOREGROUND);
+                        }
+                    }
+                    setMaskImg(masks);
+                    Log.i("total bytes", String.valueOf(imgBytes.length));
+                } else {
+                    Toast.makeText(MainActivity.this, "请先上传图片", Toast.LENGTH_SHORT).show();
+                }
+
             }
         });
         paint = new Paint(Paint.DITHER_FLAG);
@@ -124,7 +225,7 @@ public class MainActivity extends AppCompatActivity {
         imageViewSrc.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View view, MotionEvent event) {
-                if (imgSrcBitMap == null && event.getAction() == MotionEvent.ACTION_DOWN ) {
+                if (imgSrcBitMap == null && event.getAction() == MotionEvent.ACTION_DOWN) {
                     Intent chooseInAlbum = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
                     startActivityForResult(chooseInAlbum, 0);
                     return false;
