@@ -1,4 +1,4 @@
-﻿package cn.huww98.cv.graphcut;
+package cn.huww98.cv.graphcut;
 
 import java.util.*;
 

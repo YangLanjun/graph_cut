@@ -31,6 +31,9 @@ import java.io.FileNotFoundException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
+import cn.huww98.cv.graphcut.GraphCut;
+import cn.huww98.cv.graphcut.GraphCutClasses;
+
 public class MainActivity extends AppCompatActivity {
     private Button doCutButton;
     private ImageView imageViewSrc;
@@ -100,10 +103,10 @@ public class MainActivity extends AppCompatActivity {
 
         int row = (int) p.y;
         int col = (int) p.x;
-        int maskArea=7;
-        for (int i = 0-maskArea; i <=maskArea; i++) {
+        int maskArea = 7;
+        for (int i = 0 - maskArea; i <= maskArea; i++) {
             if (row + i >= 0 && row + i < height) {
-                for (int j = 0-maskArea; j <=maskArea; j++) {
+                for (int j = 0 - maskArea; j <= maskArea; j++) {
                     if (col + j >= 0 && col + j < width) {
                         int index = (row + i) * width + col + j;
                         masks[index] = target;
@@ -114,11 +117,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void buildMaskBetweenTwoPoints(Point start, Point end, GraphCutClasses[] masks, GraphCutClasses target) {
-        if (distance(start, end) <=125 ) {
+        if (distance(start, end) <= 125) {
             buildMask(start, masks, target);
             buildMask(end, masks, target);
         } else {
-           // Log.i("distance",String.valueOf(distance(start, end)));
+            // Log.i("distance",String.valueOf(distance(start, end)));
             Point midPoint = new Point((start.x + end.x) / 2, (start.y + end.y) / 2);
             buildMaskBetweenTwoPoints(start, midPoint, masks, target);
             buildMaskBetweenTwoPoints(midPoint, end, masks, target);
@@ -130,18 +133,31 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < dstCopy.getHeight(); i++) {
             for (int j = 0; j < dstCopy.getWidth(); j++) {
                 int index = i * dstCopy.getWidth() + j;
-                if(masks[index]==GraphCutClasses.BACKGROUND){
+                if (masks[index] == GraphCutClasses.BACKGROUND) {
                     dstCopy.setPixel(j, i, Color.rgb(255, 0, 0));
-                }else if(masks[index]==GraphCutClasses.FOREGROUND){
+                } else if (masks[index] == GraphCutClasses.FOREGROUND) {
                     dstCopy.setPixel(j, i, Color.rgb(0, 255, 0));
-                }else {
+                } else {
                     dstCopy.setPixel(j, i, Color.rgb(0, 0, 0));
                 }
             }
         }
         imageViewDst.setImageBitmap(dstCopy);
     }
-
+    private void setMaskImg(boolean[] result) {
+        Bitmap dstCopy = imgSrcBitMap.copy(Bitmap.Config.ARGB_8888, true);
+        for (int i = 0; i < dstCopy.getHeight(); i++) {
+            for (int j = 0; j < dstCopy.getWidth(); j++) {
+                int index = i * dstCopy.getWidth() + j;
+                if (result[index]) {
+                    dstCopy.setPixel(j, i, Color.rgb(255, 255, 255));
+                } else {
+                    dstCopy.setPixel(j, i, Color.rgb(0, 0, 0));
+                }
+            }
+        }
+        imageViewDst.setImageBitmap(dstCopy);
+    }
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -169,8 +185,8 @@ public class MainActivity extends AppCompatActivity {
                     //int a=imgSrcBitMap.getPixel(0,0);
                     Log.i("img size", height + "*" + width + "=" + height * width);
                     GraphCutClasses[] masks = new GraphCutClasses[height * width];
-                    for (GraphCutClasses mask : masks) {
-                        mask = GraphCutClasses.UNKNOWN;
+                    for (int i = 0; i < masks.length; i++) {
+                        masks[i] = GraphCutClasses.UNKNOWN;
                     }
                     for (Line line : backgroundLines) {
                         for (int i = 0; i < line.points.size() - 1; i++) {
@@ -179,19 +195,21 @@ public class MainActivity extends AppCompatActivity {
                             buildMaskBetweenTwoPoints(startPos, endPos, masks, GraphCutClasses.BACKGROUND);
                         }
                     }
-                    int count=0;
-                    Log.i("line counts",String.valueOf(foregroundLines.size()));
+                    int count = 0;
+                    Log.i("line counts", String.valueOf(foregroundLines.size()));
                     for (Line line : foregroundLines) {
                         count++;
-                        Log.i("number",String.valueOf(count));
+                        Log.i("number", String.valueOf(count));
                         for (int i = 0; i < line.points.size() - 1; i++) {
-                            Log.i("i",String.valueOf(i));
+                            Log.i("i", String.valueOf(i));
                             Point startPos = line.points.get(i);
                             Point endPos = line.points.get(i + 1);
                             buildMaskBetweenTwoPoints(startPos, endPos, masks, GraphCutClasses.FOREGROUND);
                         }
                     }
-                    setMaskImg(masks);
+                    //   setMaskImg(masks);
+                    boolean[] result = GraphCut.graphCut(imgBytes, masks, width);
+                    setMaskImg(result);
                     Log.i("total bytes", String.valueOf(imgBytes.length));
                 } else {
                     Toast.makeText(MainActivity.this, "请先上传图片", Toast.LENGTH_SHORT).show();
