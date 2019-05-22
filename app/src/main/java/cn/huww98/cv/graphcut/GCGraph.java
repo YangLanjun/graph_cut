@@ -7,23 +7,9 @@ enum VertexStatus {
 }
 
 class GCGraph {
-
-//    static class Node {
-//        VertexStatus status;
-//        Edge IncomingEdge;
-//        /**
-//         * Weights for edges from Source or Sink to vertex
-//         */
-//        double weight;
-//    }
-//
-//    static class Edge {
-//
-//    }
-
     /**
      * Weights for edges from Source or Sink to vertex.
-     * Positive for
+     * Positive for source, negative for sink
      */
     final private double[] weights;
 
@@ -103,17 +89,6 @@ class GCGraph {
             int edgeIndex = vertexIndex * numEdgePerVertex + 2;
             result.add(new Neighbor(u, edgeIndex));
         }
-//        for (int i = 0; i < edgeDestinationOffsets.length; i++) {
-//            // TODO 图像边缘
-//            int offset = edgeDestinationOffsets[i];
-//            int u = vertexIndex + offset;
-//            int edgeIndex = vertexIndex * numEdgePerVertex + i * 2;
-//            result.add(new Neighbor(u, edgeIndex));
-//
-//            u = vertexIndex - offset;
-//            edgeIndex = u * numEdgePerVertex + i * 2 + 1;
-//            result.add(new Neighbor(u, edgeIndex));
-//        }
         return result;
     }
 
@@ -138,8 +113,16 @@ class GCGraph {
         return edgeIndex ^ 1;
     }
 
+    VertexStatus[] noop() {
+        VertexStatus[] status = new VertexStatus[weights.length];
+        for (int i = 0; i < weights.length; i++) {
+            status[i] = weights[i] > 0 ? VertexStatus.Source : VertexStatus.Sink;
+        }
+        return status;
+    }
+
     VertexStatus[] maxFlow() {
-        Queue<Integer> active = new LinkedList<>();
+        Queue<Integer> active = new ArrayLinkedList(weights.length);
         VertexStatus[] status = new VertexStatus[weights.length];
         int[] parent = new int[weights.length]; // Index of edge from parent to this vertex
 //        int[] depth = new int[weights.length];
@@ -166,7 +149,7 @@ class GCGraph {
             if (contactEdgeIndex < 0) {
                 break;
             }
-            //System.out.println("contact: " + contactEdgeIndex + ", active count: " + active.size());
+//            System.out.println("contact: " + contactEdgeIndex + ", active count: " + active.size());
 
             // Augmentation Stage
             double minWeight = edgeWeights[contactEdgeIndex];
@@ -244,7 +227,7 @@ class GCGraph {
                         if (status[o] != status[n.destinationIndex]) {
                             continue;
                         }
-                        if (edgeWeights[n.edgeIndex] > 0 && !active.contains(n.destinationIndex)) {
+                        if (edgeWeights[n.edgeIndex] > 0) {
                             active.add(n.destinationIndex);
                         }
                         if (parent[n.destinationIndex] == n.edgeIndex) {
@@ -254,7 +237,7 @@ class GCGraph {
                     }
                     status[o] = VertexStatus.Free;
                     parent[o] = ORPHAN;
-                    active.remove(o);
+                    // Not remove o from active, it is to slow.
                 }
             }
         }
@@ -267,27 +250,29 @@ class GCGraph {
      */
     private int growthTree(Queue<Integer> active, VertexStatus[] status, int[] parent) {
         while (!active.isEmpty()) {
-            int v = active.remove();
+            int v = active.element();
             VertexStatus vs = status[v];
-            assert vs != VertexStatus.Free;
-            for (Neighbor n : getNeighbors(v)) {
-                double edgeWeight = edgeWeights[n.edgeIndex];
-                if (edgeWeight == 0.0) {
-                    continue;
-                }
-                int u = n.destinationIndex;
-                VertexStatus us = status[u];
-                if (us == VertexStatus.Free) {
-                    status[u] = vs;
-                    parent[u] = n.edgeIndex;
-                    active.offer(u);
-                } else if (us != vs) {
-                    int contactEdge = vs == VertexStatus.Source ? n.edgeIndex : getReverseEdge(n.edgeIndex);
-                    if (edgeWeights[contactEdge] > 0) {
-                        return contactEdge;
+            if (vs != VertexStatus.Free) { // Maybe v is an orphan
+                for (Neighbor n : getNeighbors(v)) {
+                    double edgeWeight = edgeWeights[n.edgeIndex];
+                    if (edgeWeight == 0.0) {
+                        continue;
+                    }
+                    int u = n.destinationIndex;
+                    VertexStatus us = status[u];
+                    if (us == VertexStatus.Free) {
+                        status[u] = vs;
+                        parent[u] = n.edgeIndex;
+                        active.offer(u);
+                    } else if (us != vs) {
+                        int contactEdge = vs == VertexStatus.Source ? n.edgeIndex : getReverseEdge(n.edgeIndex);
+                        if (edgeWeights[contactEdge] > 0) {
+                            return contactEdge;
+                        }
                     }
                 }
             }
+            active.remove();
         }
         return -1;
     }

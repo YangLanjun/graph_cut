@@ -46,7 +46,7 @@ public class GraphCut {
     final static int gOffset = 2;
     final static int bOffset = 3;
 
-    final static double gamma = 50;
+    final static double gamma = 100;
     final static double K = 4 * gamma + 1;
 
     final static int byteMask = 0xFF;
@@ -147,6 +147,7 @@ public class GraphCut {
         }
 
         VertexStatus[] status = graph.maxFlow();
+//        VertexStatus[] status = graph.noop();
         boolean[] result = new boolean[mask.length];
         for (int i = 0; i < mask.length; i++) {
             result[i] = status[i] == VertexStatus.Source;
