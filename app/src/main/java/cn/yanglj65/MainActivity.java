@@ -22,15 +22,12 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.RadioGroup;
 import android.widget.Toast;
-
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
-
 import java.io.FileNotFoundException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-
 import cn.huww98.cv.graphcut.GraphCut;
 import cn.huww98.cv.graphcut.GraphCutClasses;
 
@@ -87,7 +84,6 @@ public class MainActivity extends AppCompatActivity {
 
     public byte[] getBytesByBitmap(Bitmap bitmap) {
         int bytes = bitmap.getByteCount();
-
         ByteBuffer buf = ByteBuffer.allocate(bytes);
         bitmap.copyPixelsToBuffer(buf);
         return buf.array();
@@ -317,6 +313,14 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         imageUri = data.getData();
                         imgSrcBitMap = BitmapFactory.decodeStream(this.getContentResolver().openInputStream(imageUri));
+                        int srcWidth=imgSrcBitMap.getWidth();
+                        int srcHeight=imgSrcBitMap.getHeight();
+                        int maxEdge=Math.max(srcWidth,srcHeight);
+                        double scale=maxEdge/1280.0;
+                        if(scale<=1.0){
+                            scale=1;
+                        }
+                        imgSrcBitMap=Bitmap.createScaledBitmap(imgSrcBitMap,(int)(srcWidth/scale),(int)(srcHeight/scale),true);
                         imageViewSrc.setImageBitmap(imgSrcBitMap);
                         imgSrcBitMapCopy = imgSrcBitMap.copy(Bitmap.Config.ARGB_8888, true);
                     } catch (FileNotFoundException e) {
